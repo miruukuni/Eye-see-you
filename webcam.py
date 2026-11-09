@@ -13,8 +13,15 @@ except ImportError:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--camera", type=int, default=0, help="Camera number (default: 0)")
-    parser.add_argument("--check", action="store_true", help="Check OpenCV without opening the camera")
+    parser.add_argument(
+        "--camera", type=int, default=0, help="Camera number (default: 0)"
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="Check OpenCV without opening the camera"
+    )
+    parser.add_argument(
+        "--hands", action="store_true", help="Track a hand and estimate waving"
+    )
     args = parser.parse_args()
 
     if args.check:
@@ -22,18 +29,28 @@ def main():
         print("OpenCV imported successfully. No camera was opened.")
         return 0
 
+    tracker = None
+    if args.hands:
+        from patterns.handrecognition import HandRecognition
+
+        tracker = HandRecognition()
+
     # A camera produces a sequence of images, called frames.
     camera = cv2.VideoCapture(args.camera)
-    window_name = "Activity Recognition - Milestone 1"
+    window_name = "testing webcam"
 
     try:
         if not camera.isOpened():
-            print("Could not open the camera. Close other camera apps and check Windows camera permissions.")
+            print(
+                "Could not open the camera. Close other camera apps and check Windows camera permissions."
+            )
             print("If you have another camera, try: python webcam.py --camera 1")
             return 1
 
         print("Camera open. Click the video window and press Q or Escape to quit.")
-        print("This milestone displays video only; it does not recognize activities or save recordings.")
+        print(
+            "This milestone displays video only; it does not recognize activities or save recordings."
+        )
         previous_time = time.perf_counter()
         fps = 0.0
 
@@ -45,6 +62,9 @@ def main():
 
             # Mirror the image so moving your hand feels natural.
             frame = cv2.flip(frame, 1)
+            activity = (
+                tracker.process(frame) if tracker else "Tracking off: run with --hands"
+            )
             now = time.perf_counter()
             elapsed = now - previous_time
             previous_time = now
@@ -53,14 +73,24 @@ def main():
 
             # These are status messages, not predictions.
             lines = [
-                "Milestone 1: camera preview",
-                "Activity recognition: not added yet",
+                "",
+                activity,
                 f"FPS: {fps:.0f} | Q / Esc: quit",
             ]
             for index, line in enumerate(lines):
                 position = (15, 30 + index * 30)
-                cv2.putText(frame, line, position, cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 4)
-                cv2.putText(frame, line, position, cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
+                cv2.putText(
+                    frame, line, position, cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 4
+                )
+                cv2.putText(
+                    frame,
+                    line,
+                    position,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (255, 255, 255),
+                    1,
+                )
 
             cv2.imshow(window_name, frame)
             key = cv2.waitKey(1) & 0xFF
@@ -74,6 +104,8 @@ def main():
         # Release the camera even if the program stops unexpectedly.
         camera.release()
         cv2.destroyAllWindows()
+        if tracker:
+            tracker.close()
 
 
 if __name__ == "__main__":
